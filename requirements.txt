@@ -1,0 +1,5 @@
+# requirements.txt
+selenium
+webdriver-manager
+PyPDF2
+google-generativeai
