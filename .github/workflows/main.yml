@@ -58,7 +58,7 @@ jobs:
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           # git pull # 충돌 방지를 위해 Pull 먼저 실행 (선택 사항)
           # 생성된 파일 확인 (스크립트가 _articles/*.md 형태로 생성한다고 가정)
-          git add _articles/*.md downloads/* # 다운로드 폴더 내용 변경도 포함 (선택 사항)
+          git add _articles/*.md
           # 변경사항이 있을 때만 커밋 및 푸시
           git diff --staged --quiet || git commit -m "feat: Add new blog post from NARS report"
           git push origin master
