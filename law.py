@@ -1,4 +1,4 @@
-# law.py (수정본 - 날짜 ID 사용)
+# law.py (수정본 - 게시 날짜 확인 기능 추가 및 Gemini 1.5 Pro 사용)
 
 import os
 import time
@@ -44,7 +44,7 @@ def setup_driver(download_dir):
         "download.default_directory": download_dir,
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
-        "plugins.always_open_pdf_externally": True
+        "plugins.always_open_pdf_externally": True  # PDF 뷰어 대신 바로 다운로드
     }
     chrome_options.add_experimental_option("prefs", prefs)
     try:
@@ -142,8 +142,9 @@ def generate_blog_post_with_gemini(api_key, pdf_text):
     print("Gemini API 설정 및 호출 시작...")
     try:
         genai.configure(api_key=api_key)
-        # 사용 가능한 모델 확인 및 선택 (예: 'gemini-1.5-flash-latest')
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        # Gemini 모델을 'gemini-2.5-pro-exp-03-25'로 변경
+        model = genai.GenerativeModel('gemini-2.5-pro-exp-03-25')
+        print(f"Gemini 모델 '{model.model_name}' 사용 중...")
 
         prompt = f"""
         당신은 국회입법조사처의 보고서 내용을 일반 대중이 이해하기 쉽게 **Markdown 형식의 블로그 게시물**로 재작성하는 AI 어시스턴트입니다. 최종 목표는 GitHub Pages 블로그('Handmade Blog' 템플릿 사용)에 게시할 수 있는 `.md` 파일을 만드는 것입니다.
@@ -173,8 +174,7 @@ def generate_blog_post_with_gemini(api_key, pdf_text):
         **이제 위의 모든 가이드라인과 보고서 내용을 바탕으로, 완결된 Markdown 형식의 블로그 게시물 본문 전체를 작성해주세요.**
         """
         # Gemini 모델의 입력 토큰 제한 고려 (필요시 pdf_text 길이 조절)
-        # 예시: gemini-1.5-flash-latest는 컨텍스트 창이 넓으므로 대부분의 경우 문제 없음
-        max_input_length = 100000 # 모델에 따라 적절히 조절
+        max_input_length = 1000000 # gemini-1.5-pro-latest는 컨텍스트 창이 매우 큼
         if len(pdf_text) > max_input_length:
             print(f"입력 텍스트가 너무 깁니다 ({len(pdf_text)}자). 앞부분 {max_input_length}자만 사용합니다.")
             pdf_text_input = pdf_text[:max_input_length]
@@ -206,15 +206,6 @@ def generate_blog_post_with_gemini(api_key, pdf_text):
         print(f"Gemini API 호출 중 오류 발생: {e}")
         raise
 
-# get_next_article_id 함수는 더 이상 사용되지 않으므로 주석 처리 또는 삭제합니다.
-# def get_next_article_id(posts_directory):
-#     """
-#     지정된 디렉토리의 마크다운 파일들에서 가장 큰 숫자 ID를 찾아 다음 ID를 반환합니다.
-#     파일 내 'id: 숫자' 형식의 frontmatter를 검색합니다.
-#     파일이 없거나 숫자 ID가 없으면 0부터 시작합니다.
-#     """
-#     # ... (이전 코드 내용) ...
-
 def save_markdown_post(markdown_content):
     """생성된 마크다운 내용을 Front Matter와 함께 파일로 저장합니다."""
     try:
@@ -226,10 +217,10 @@ def save_markdown_post(markdown_content):
 
         # 마크다운 본문 첫 줄에서 제목 추출 (Front Matter용)
         title_line = cleaned_output.split('\n', 1)[0]
-        # 제목에서 Markdown '#' 제거 및 YAML 따옴표 이스케이프
+        # 제목에서 Markdown '#' 제거 및 YAML 따옴표 이스케이프 (큰따옴표가 제목에 있을 경우 대비)
         post_title_for_frontmatter = title_line.lstrip('# ').strip().replace('"', '\\"')
         if not post_title_for_frontmatter:
-            post_title_for_frontmatter = "무제 보고서" # 제목이 비었을 경우 기본값
+            post_title_for_frontmatter = "무제 보고서" # 제목이 비어있을 경우 기본값
         print(f"Frontmatter용 제목: {post_title_for_frontmatter}")
 
         # 파일명용 슬러그 생성 (한글 허용 및 개선)
@@ -244,120 +235,4 @@ def save_markdown_post(markdown_content):
         kst = timezone(timedelta(hours=9))
         now = datetime.now(kst)
 
-        # --- ID 생성: YYYYMMDD 형식의 숫자 ---
-        article_id_str = now.strftime('%Y%m%d')
-        article_id = int(article_id_str) # 정수형 ID로 변환
-        print(f"생성된 아티클 ID: {article_id}")
-
-        # 파일명용 날짜 형식 (YYYY-MM-DD)
-        current_date_for_filename = now.strftime('%Y-%m-%d')
-        # Front Matter용 날짜 형식 (YYYY.MM.DD)
-        current_date_for_frontmatter = now.strftime('%Y.%m.%d')
-
-
-        # 저장될 디렉토리 생성 (없는 경우)
-        os.makedirs(POSTS_DIR, exist_ok=True)
-        # 최종 파일명 (날짜-슬러그.md)
-        filename = f"{current_date_for_filename}-{slug}.md"
-        filepath = os.path.join(POSTS_DIR, filename)
-        print(f"저장할 파일 경로: {filepath}")
-
-
-        # Front Matter 내용 구성 (id, title, date는 필수, 나머지는 선택)
-        # ArticlePublisher.ts가 id를 숫자로 처리하므로, id는 따옴표 없이 저장
-        front_matter_string = f"""---
-id: {article_id}
-title: "{post_title_for_frontmatter}"
-subtitle: ""
-date: "{current_date_for_frontmatter}"
-tags: ""
----
-
-""" # Front Matter 블록과 본문 내용 사이에 한 줄 공백 추가
-
-        # 파일 작성: Front Matter + Gemini 생성 마크다운 본문
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(front_matter_string)
-            f.write(cleaned_output) # Gemini가 생성한 내용 (본문에 '# 제목' 포함)
-
-        print(f"블로그 포스트 저장 완료: {filepath}")
-        return filepath # 저장된 파일 경로 반환
-
-    except Exception as e:
-        print(f"오류: 생성된 블로그 포스트를 파일로 저장하는 중 문제 발생 - {e}")
-        print(traceback.format_exc()) # 상세 오류 스택 트레이스 출력
-        raise
-
-# --- 메인 실행 로직 ---
-if __name__ == "__main__":
-    os.makedirs(DOWNLOAD_DIR, exist_ok=True) # 다운로드 폴더 생성
-    driver = None
-    downloaded_pdf_file = None
-    new_post_filepath = None
-
-    try:
-        driver = setup_driver(DOWNLOAD_DIR)
-        print(f"웹사이트 접속 시도: {URL}")
-        driver.get(URL)
-        wait = WebDriverWait(driver, 20) # 페이지 로딩 대기 시간 설정 (최대 20초)
-        print("페이지 로딩 대기...")
-        # 페이지에 PDF 다운로드 링크가 나타날 때까지 대기
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='.pdf']")))
-        print("페이지 로딩 완료.")
-
-        print("첫 번째 '[다운로드]' 링크 검색 중...")
-        try:
-            # '[다운로드]' 텍스트를 포함하는 모든 링크 요소 찾기
-            download_links = driver.find_elements(By.PARTIAL_LINK_TEXT, "[다운로드]")
-            if not download_links:
-                # 다운로드 링크가 없을 경우 예외 발생
-                raise NoSuchElementException("어떤 '[다운로드]' 링크도 찾을 수 없습니다.")
-
-            download_link = download_links[0] # 첫 번째 링크 선택
-            print("다운로드 링크를 찾았습니다. 클릭합니다.")
-            # JavaScript를 사용하여 클릭 (일반 click()이 동작하지 않을 경우 대비)
-            driver.execute_script("arguments[0].click();", download_link)
-            print("다운로드 링크 클릭 완료.")
-        except (TimeoutException, NoSuchElementException) as e:
-            print(f"오류: '[다운로드]' 링크를 찾거나 클릭하는 중 문제 발생 - {e}")
-            raise
-
-        # PDF 파일 다운로드 완료 대기
-        downloaded_pdf_file = wait_for_download_complete(DOWNLOAD_DIR, DOWNLOAD_WAIT_TIMEOUT)
-        # PDF에서 텍스트 추출
-        pdf_content = extract_text_from_pdf(downloaded_pdf_file)
-
-        if pdf_content: # 추출된 텍스트가 있을 경우
-            # Gemini API로 블로그 글 생성
-            blog_output_markdown = generate_blog_post_with_gemini(GEMINI_API_KEY, pdf_content)
-            print("\n--- 생성된 블로그 글 (Markdown) ---")
-            print(blog_output_markdown)
-            print("--- 블로그 글 끝 ---")
-
-            # 생성된 글을 파일로 저장
-            new_post_filepath = save_markdown_post(blog_output_markdown)
-        else:
-            print("PDF에서 텍스트를 추출하지 못해 블로그 글을 생성할 수 없습니다.")
-
-    except Exception as e:
-        print(f"스크립트 실행 중 오류 발생: {e}")
-        print(traceback.format_exc()) # 메인 실행 로직에서 발생한 오류도 스택 트레이스 출력
-        # GitHub Actions에서 실패로 처리하려면 종료 코드 반환
-        # import sys
-        # sys.exit(1)
-    finally:
-        # 웹 드라이버 종료
-        if driver:
-            driver.quit()
-            print("웹 드라이버를 종료합니다.")
-        # 다운로드한 PDF 파일 삭제 (선택 사항)
-        if downloaded_pdf_file and os.path.exists(downloaded_pdf_file):
-            try:
-                os.remove(downloaded_pdf_file)
-                print(f"다운로드한 PDF 파일 삭제 완료: {downloaded_pdf_file}")
-            except Exception as e:
-                print(f"오류: 다운로드한 PDF 파일 삭제 중 문제 발생 - {e}")
-
-        # GitHub Actions 워크플로우에서 사용할 수 있도록 새 포스트 경로 출력 (옵션)
-        if new_post_filepath:
-            print(f"::set-output name=new_post_path::{new_post_filepath}")
+        # --- ID 
