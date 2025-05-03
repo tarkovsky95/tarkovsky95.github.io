@@ -1,4 +1,4 @@
-# law.py (수정본 - 게시 날짜 확인 기능 추가 및 Gemini 1.5 Pro 사용)
+# law.py (수정본 - 게시 날짜 확인 기능 추가 및 Gemini 2.5 Pro 사용)
 
 import os
 import time
